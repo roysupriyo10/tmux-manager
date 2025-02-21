@@ -1,0 +1,25 @@
+{
+  "name": "tmux-manager",
+  "version": "1.0.0",
+  "description": "A CLI tool for managing tmux sessions",
+  "main": "dist/index.js",
+  "bin": {
+    "tmux-manager": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.0.0",
+    "conf": "^11.0.1"
+  },
+  "devDependencies": {
+    "@types/conf": "^2.1.0",
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  }
+}
