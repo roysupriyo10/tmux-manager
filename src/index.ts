@@ -67,6 +67,25 @@ program
   });
 
 program
+  .command("entry-remove")
+  .description("Remove an entry from a configuration")
+  .requiredOption("--name <name>", "name of the configuration")
+  .requiredOption("--entry-name <entry-name>", "name of the entry to remove")
+  .action(async (options) => {
+    try {
+      configManager.removeEntry(options.name, options.entryName);
+      console.log(
+        chalk.green,
+      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      console.error(chalk.red(errorMessage));
+      process.exit(1);
+    }
+  });
+
+program
   .command("kill")
   .description("Kill tmux sessions from a configuration")
   .requiredOption("--name <name>", "name of the configuration")

@@ -13,6 +13,27 @@ export class ConfigManager {
     });
   }
 
+  removeEntry(name: string, entryName: string): void {
+    const configs = this.store.get("configs");
+    if (!configs[name]) {
+      throw new Error(`Config "${name}" not found`);
+    }
+
+    const config = configs[name];
+    const entryIndex = config.entries.findIndex(
+      (entry) => entry.entryName === entryName,
+    );
+
+    if (entryIndex === -1) {
+      throw new Error(`Entry "${entryName}" not found in config "${name}"`);
+    }
+
+    config.entries.splice(entryIndex, 1);
+    config.updatedAt = new Date().toISOString();
+    configs[name] = config;
+    this.store.set("configs", configs);
+  }
+
   createConfig(name: string, windows: number = 2): void {
     const configs = this.store.get("configs");
     if (configs[name]) {
