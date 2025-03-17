@@ -3,6 +3,8 @@ import { Command } from "commander";
 import { ConfigManager } from "./config";
 import { TmuxManager } from "./tmux";
 import chalk from "chalk";
+import { findBestMatch } from "./utils";
+import { TmuxConfig } from "./@types";
 
 const program = new Command();
 const configManager = new ConfigManager();
@@ -50,14 +52,59 @@ program
     }
   });
 
+// Updated start command section
 program
   .command("start")
   .description("Start tmux sessions from a configuration")
   .requiredOption("--name <name>", "name of the configuration")
+  .option("--entry <entries...>", "specific entries to start (fuzzy matching)")
   .action(async (options) => {
     try {
       const config = configManager.getConfig(options.name);
-      await tmuxManager.createSessions(config);
+
+      if (
+        options.entry &&
+        Array.isArray(options.entry) &&
+        options.entry.length > 0
+      ) {
+        // Fuzzy match the entry names
+        const fuzzyMatchedConfig = {
+          ...config,
+          entries: [] as TmuxConfig["entries"],
+        };
+
+        for (const entryPattern of options.entry) {
+          const allEntryNames = config.entries.map((entry) => entry.entryName);
+          const matchedEntryName = findBestMatch(entryPattern, allEntryNames);
+
+          if (matchedEntryName) {
+            const matchedEntry = config.entries.find(
+              (entry) => entry.entryName === matchedEntryName,
+            );
+            if (matchedEntry) {
+              fuzzyMatchedConfig.entries.push(matchedEntry);
+              console.log(
+                chalk.green(
+                  `Fuzzy matched '${entryPattern}' to '${matchedEntryName}'`,
+                ),
+              );
+            }
+          } else {
+            console.log(chalk.yellow(`No match found for '${entryPattern}'`));
+          }
+        }
+
+        if (fuzzyMatchedConfig.entries.length === 0) {
+          console.log(
+            chalk.yellow("No entries matched. No sessions will be created."),
+          );
+          return;
+        }
+
+        await tmuxManager.createSessions(fuzzyMatchedConfig);
+      } else {
+        await tmuxManager.createSessions(config);
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -65,6 +112,22 @@ program
       process.exit(1);
     }
   });
+
+// program
+//   .command("start")
+//   .description("Start tmux sessions from a configuration")
+//   .requiredOption("--name <name>", "name of the configuration")
+//   .action(async (options) => {
+//     try {
+//       const config = configManager.getConfig(options.name);
+//       await tmuxManager.createSessions(config);
+//     } catch (error) {
+//       const errorMessage =
+//         error instanceof Error ? error.message : String(error);
+//       console.error(chalk.red(errorMessage));
+//       process.exit(1);
+//     }
+//   });
 
 program
   .command("entry-remove")
@@ -74,9 +137,7 @@ program
   .action(async (options) => {
     try {
       configManager.removeEntry(options.name, options.entryName);
-      console.log(
-        chalk.green,
-      );
+      console.log(chalk.green);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
