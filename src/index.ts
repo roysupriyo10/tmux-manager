@@ -150,10 +150,50 @@ program
   .command("kill")
   .description("Kill tmux sessions from a configuration")
   .requiredOption("--name <name>", "name of the configuration")
+  .option("--entry <entries...>", "specific entries to kill (fuzzy matching)")
   .action(async (options) => {
     try {
       const config = configManager.getConfig(options.name);
-      await tmuxManager.killSessions(config);
+
+      if (options.entry && Array.isArray(options.entry) && options.entry.length > 0) {
+        const fuzzyMatchedConfig = {
+          ...config,
+          entries: [] as TmuxConfig["entries"],
+        };
+
+        for (const entryPattern of options.entry) {
+          const allEntryNames = config.entries.map((entry) => entry.entryName);
+          const matchedEntryName = findBestMatch(entryPattern, allEntryNames);
+
+          if (matchedEntryName) {
+            const matchedEntry = config.entries.find(
+              (entry) => entry.entryName === matchedEntryName,
+            );
+            if (matchedEntry) {
+              fuzzyMatchedConfig.entries.push(matchedEntry);
+              console.log(
+                chalk.green(
+                  `Fuzzy matched '${entryPattern}' to '${matchedEntryName}'`,
+                ),
+              );
+            }
+          }
+          else {
+            console.log(chalk.yellow(`No match found for '${entryPattern}'`));
+          }
+        }
+
+        if (fuzzyMatchedConfig.entries.length === 0) {
+          console.log(chalk.yellow("No entries matched. No sessions will be killed."));
+          return;
+        }
+
+        await tmuxManager.killSessions(fuzzyMatchedConfig);
+      }
+      else {
+        await tmuxManager.killSessions(config);
+      }
+
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
