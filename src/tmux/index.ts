@@ -13,7 +13,7 @@ export class TmuxManager {
 
       try {
         // Check if session exists
-        await execAsync(`${this.tmuxPath} has-session -t "${sessionName}"`);
+        await execAsync(`${this.tmuxPath} has-session -t="${sessionName}"`);
         console.log(`Session ${sessionName} already exists`);
         continue;
       } catch {
