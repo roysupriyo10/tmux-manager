@@ -5,9 +5,9 @@ export function fuzzyMatch(pattern: string, str: string): number {
 
   if (patternLower === strLower) return Infinity; // Exact match gets highest priority
   if (strLower.startsWith(patternLower))
-    return 1000 + (strLower.length - patternLower.length); // Prefix match gets high priority
+    return 1000 - (strLower.length - patternLower.length); // Prefer shorter/closer prefix matches
   if (strLower.includes(patternLower))
-    return 500 + (strLower.length - patternLower.length); // Substring match gets medium priority
+    return 500 - (strLower.length - patternLower.length); // Prefer shorter/closer substring matches
 
   let score = 0;
   let patternIndex = 0;

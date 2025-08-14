@@ -6,8 +6,6 @@ import chalk from "chalk";
 import { findBestMatch } from "./utils";
 import { TmuxConfig } from "./@types";
 
-import FuzzySearch from "fuzzy-search";
-
 const program = new Command();
 const configManager = new ConfigManager();
 const tmuxManager = new TmuxManager();
@@ -70,40 +68,30 @@ program
         Array.isArray(options.entry) &&
         options.entry.length > 0
       ) {
-        const fuzzySearcher = new FuzzySearch(
-          config.entries.map((entry) => entry.entryName),
-          [],
-          {
-            caseSensitive: false,
-            sort: true,
-          },
-        );
-        // Fuzzy match the entry names
         const fuzzyMatchedConfig = {
           ...config,
           entries: [] as TmuxConfig["entries"],
         };
 
         for (const entryPattern of options.entry) {
-          const matchedEntries = fuzzySearcher.search(entryPattern);
+          const allEntryNames = config.entries.map((entry) => entry.entryName);
+          const matchedEntryName = findBestMatch(entryPattern, allEntryNames);
 
-          if (matchedEntries.length === 0) {
+          if (matchedEntryName) {
+            const matchedEntry = config.entries.find(
+              (entry) => entry.entryName === matchedEntryName,
+            );
+            if (matchedEntry) {
+              fuzzyMatchedConfig.entries.push(matchedEntry);
+              console.log(
+                chalk.green(
+                  `Fuzzy matched '${entryPattern}' to '${matchedEntryName}'`,
+                ),
+              );
+            }
+          } else {
             console.log(chalk.yellow(`No match found for '${entryPattern}'`));
-            continue;
           }
-
-          const matchedEntryName = matchedEntries[0];
-
-          const matchedEntry = config.entries.find(
-            (entry) => entry.entryName === matchedEntryName,
-          );
-
-          if (!matchedEntry) {
-            console.log(chalk.yellow(`No match found for '${entryPattern}'`));
-            continue;
-          }
-
-          fuzzyMatchedConfig.entries.push(matchedEntry);
         }
 
         if (fuzzyMatchedConfig.entries.length === 0) {
