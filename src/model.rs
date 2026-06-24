@@ -1,5 +1,6 @@
 use crate::paths::{expand_config_root, expand_path};
 use indexmap::IndexMap;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -12,11 +13,15 @@ pub struct Store {
     pub configs: IndexMap<String, Config>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Project root. Absolute path, ~/…, or bare relative (resolved under $HOME)."
+    )]
     pub root: Option<PathBuf>,
     #[serde(default = "default_windows")]
+    #[schemars(description = "Default window count per session.", range(min = 1))]
     pub windows: u32,
     /// Parent directory for worktrees, relative to config root unless absolute.
     #[serde(
@@ -24,41 +29,64 @@ pub struct Config {
         skip_serializing_if = "Option::is_none",
         rename = "worktree_parent"
     )]
+    #[schemars(
+        description = "Worktree parent directory (relative to root unless absolute). Used with `tm start -w <name>`."
+    )]
     pub worktree_parent: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Session path segment for worktrees. `{name}` is replaced with the -w argument.",
+        example = "worktree-{name}"
+    )]
     pub worktree_prefix: Option<String>,
+    #[schemars(
+        description = "Session entries: key is session suffix, value is directory or options."
+    )]
     pub entries: IndexMap<String, Entry>,
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    #[schemars(description = "Per-worktree overrides keyed by worktree name.")]
     pub worktrees: IndexMap<String, WorktreeOverrides>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema)]
 pub struct WorktreeOverrides {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Direct checkout root for this worktree. Does not append the worktree name."
+    )]
     pub root: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(
+        description = "Default window count when using this worktree.",
+        range(min = 1)
+    )]
     pub windows: Option<u32>,
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
         rename = "worktree_parent"
     )]
+    #[schemars(description = "Override worktree parent for this worktree only.")]
     pub worktree_parent: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum Entry {
+    #[schemars(description = "Directory relative to effective root (or . for root).")]
     Simple(PathBuf),
     Detailed(EntryOptions),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct EntryOptions {
+    #[schemars(description = "Directory relative to effective root.")]
     pub dir: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Override window count for this entry.", range(min = 1))]
     pub windows: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(description = "Command sent to the session after create (tmux send-keys).")]
     pub cmd: Option<String>,
 }
 

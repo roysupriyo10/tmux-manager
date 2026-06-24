@@ -1,0 +1,274 @@
+{
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "Entry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "anyOf": [
+        {
+          "description": "Directory relative to effective root (or . for root).",
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/EntryOptions"
+        }
+      ],
+      "definitions": {
+        "Entry": {
+          "anyOf": [
+            {
+              "description": "Directory relative to effective root (or . for root).",
+              "type": "string"
+            },
+            {
+              "$ref": "#/definitions/EntryOptions"
+            }
+          ]
+        },
+        "EntryOptions": {
+          "properties": {
+            "cmd": {
+              "description": "Command sent to the session after create (tmux send-keys).",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dir": {
+              "description": "Directory relative to effective root.",
+              "type": "string"
+            },
+            "windows": {
+              "description": "Override window count for this entry.",
+              "format": "uint32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "dir"
+          ],
+          "type": "object"
+        },
+        "WorktreeOverrides": {
+          "properties": {
+            "root": {
+              "description": "Direct checkout root for this worktree. Does not append the worktree name.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "windows": {
+              "description": "Default window count when using this worktree.",
+              "format": "uint32",
+              "minimum": 1,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "worktree_parent": {
+              "description": "Override worktree parent for this worktree only.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "type": "object"
+        }
+      },
+      "title": "Entry"
+    },
+    "EntryOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "cmd": {
+          "description": "Command sent to the session after create (tmux send-keys).",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-taplo": {
+            "initKeys": [
+              "dir",
+              "windows",
+              "cmd"
+            ]
+          }
+        },
+        "dir": {
+          "description": "Directory relative to effective root.",
+          "type": "string",
+          "x-taplo": {
+            "initKeys": [
+              "dir",
+              "windows",
+              "cmd"
+            ]
+          }
+        },
+        "windows": {
+          "description": "Override window count for this entry.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-taplo": {
+            "initKeys": [
+              "dir",
+              "windows",
+              "cmd"
+            ]
+          }
+        }
+      },
+      "required": [
+        "dir"
+      ],
+      "type": "object",
+      "x-taplo": {
+        "initKeys": [
+          "dir",
+          "windows",
+          "cmd"
+        ]
+      }
+    },
+    "WorktreeOverrides": {
+      "additionalProperties": false,
+      "properties": {
+        "root": {
+          "description": "Direct checkout root for this worktree. Does not append the worktree name.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-taplo": {
+            "initKeys": [
+              "root",
+              "windows",
+              "worktree_parent"
+            ]
+          }
+        },
+        "windows": {
+          "description": "Default window count when using this worktree.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-taplo": {
+            "initKeys": [
+              "root",
+              "windows",
+              "worktree_parent"
+            ]
+          }
+        },
+        "worktree_parent": {
+          "description": "Override worktree parent for this worktree only.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "x-taplo": {
+            "initKeys": [
+              "root",
+              "windows",
+              "worktree_parent"
+            ]
+          }
+        }
+      },
+      "type": "object",
+      "x-taplo": {
+        "initKeys": [
+          "root",
+          "windows",
+          "worktree_parent"
+        ]
+      }
+    }
+  },
+  "description": "tmux session definitions for tm. Top-level keys are config names (e.g. kuib-ai, portfolios).",
+  "patternProperties": {
+    "^[a-zA-Z][a-zA-Z0-9._-]*$": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Entry"
+          },
+          "description": "Session entries: key is session suffix, value is directory or options.",
+          "type": "object"
+        },
+        "root": {
+          "description": "Project root. Absolute path, ~/…, or bare relative (resolved under $HOME).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "windows": {
+          "default": 2,
+          "description": "Default window count per session.",
+          "format": "uint32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "worktree_parent": {
+          "description": "Worktree parent directory (relative to root unless absolute). Used with `tm start -w <name>`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktree_prefix": {
+          "description": "Session path segment for worktrees. `{name}` is replaced with the -w argument.",
+          "examples": [
+            "worktree-{name}"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "worktrees": {
+          "additionalProperties": {
+            "$ref": "#/definitions/WorktreeOverrides"
+          },
+          "description": "Per-worktree overrides keyed by worktree name.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object",
+      "x-taplo": {
+        "docs": {
+          "main": "A tmux-manager config (project). Top-level TOML: `[name]` + `[name.entries]` + optional `[name.worktrees.\"…\"]`."
+        },
+        "initKeys": [
+          "root",
+          "windows",
+          "worktree_parent",
+          "worktree_prefix",
+          "entries",
+          "worktrees"
+        ]
+      }
+    }
+  },
+  "title": "tmux-manager config",
+  "type": "object"
+}
