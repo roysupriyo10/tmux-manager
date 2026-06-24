@@ -1,4 +1,5 @@
-use crate::model::{relativize_dir, Config, Store};
+use crate::model::{relativize_dir, Config, Entry, EntryOptions, Store};
+use crate::paths::expand_config_root;
 use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
@@ -47,6 +48,8 @@ pub fn add_entry(
     config_name: &str,
     key: &str,
     dir: PathBuf,
+    windows: Option<u32>,
+    cmd: Option<String>,
 ) -> Result<()> {
     let config = store
         .configs
@@ -57,16 +60,36 @@ pub fn add_entry(
         anyhow::bail!("entry '{key}' already exists in config '{config_name}'");
     }
 
+    let expanded = if dir.to_string_lossy().starts_with('~') || dir.is_absolute() {
+        expand_config_root(&dir)?
+    } else {
+        dir
+    };
+
     let stored_dir = match config.root.as_deref() {
-        Some(root) if dir.is_absolute() => relativize_dir(root, &dir),
-        Some(_) => dir,
-        None if dir.is_absolute() => dir,
+        Some(root) => {
+            let expanded_root = expand_config_root(root)?;
+            if expanded.is_absolute() || expanded.to_string_lossy().starts_with('~') {
+                relativize_dir(&expanded_root, &expanded)
+            } else {
+                expanded
+            }
+        },
+        None if expanded.is_absolute() => expanded,
         None => anyhow::bail!("config '{config_name}' has no root; use an absolute directory"),
     };
 
-    config
-        .entries
-        .insert(key.to_string(), crate::model::Entry::from_dir(stored_dir));
+    let entry = if windows.is_some() || cmd.is_some() {
+        Entry::Detailed(EntryOptions {
+            dir: stored_dir,
+            windows,
+            cmd,
+        })
+    } else {
+        Entry::from_dir(stored_dir)
+    };
+
+    config.entries.insert(key.to_string(), entry);
 
     Ok(())
 }
@@ -89,14 +112,18 @@ pub fn create_config(
     name: &str,
     root: Option<PathBuf>,
     windows: u32,
+    worktree_parent: Option<PathBuf>,
+    worktree_prefix: Option<String>,
 ) -> Result<()> {
     if store.configs.contains_key(name) {
         anyhow::bail!("config '{name}' already exists");
     }
 
-    store
-        .configs
-        .insert(name.to_string(), Config::new(root, windows));
+    let mut config = Config::new(root, windows);
+    config.worktree_parent = worktree_parent;
+    config.worktree_prefix = worktree_prefix;
+
+    store.configs.insert(name.to_string(), config);
 
     Ok(())
 }

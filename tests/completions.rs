@@ -9,7 +9,11 @@ fn completions_subcommand_emits_zsh_compdef() {
         .output()
         .expect("run tm completions zsh");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     let script = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(script.contains("#compdef tm"));
@@ -50,7 +54,11 @@ fn dynamic_zsh_registration_includes_compdef() {
         .output()
         .expect("run COMPLETE=zsh tm");
 
-    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     let script = String::from_utf8_lossy(&output.stdout);
     assert!(script.contains("#compdef tm"));
     assert!(script.contains("dynamic"));

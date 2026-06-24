@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::process::Command;
 
 pub trait Backend {
-    fn start_sessions(&self, entries: &[ResolvedEntry]) -> Result<()>;
+    fn start_sessions(&self, entries: &[ResolvedEntry], quiet: bool) -> Result<()>;
     fn kill_sessions(&self, entries: &[ResolvedEntry]) -> Result<()>;
 }
 
@@ -82,11 +82,7 @@ impl TmuxBackend {
         I: IntoIterator<Item = S>,
         S: AsRef<OsStr>,
     {
-        let status = self
-            .command()
-            .args(args)
-            .status()
-            .context("run tmux")?;
+        let status = self.command().args(args).status().context("run tmux")?;
 
         if !status.success() {
             anyhow::bail!("tmux exited with {status}");
@@ -109,32 +105,60 @@ impl TmuxBackend {
                     .filter(|line| !line.is_empty())
                     .map(str::to_owned)
                     .collect())
-            }
+            },
             _ => Ok(HashSet::new()),
         }
     }
 }
 
 impl Backend for TmuxBackend {
-    fn start_sessions(&self, entries: &[ResolvedEntry]) -> Result<()> {
+    fn start_sessions(&self, entries: &[ResolvedEntry], quiet: bool) -> Result<()> {
         if entries.is_empty() {
             return Ok(());
         }
 
         let existing = self.list_sessions()?;
+        let mut to_create: Vec<&ResolvedEntry> = Vec::new();
+        let mut skipped = 0usize;
 
         for entry in entries {
             let session = normalize_session_name(&entry.session_name);
-
             if existing.contains(&session) {
-                println!("session {session} already exists");
+                skipped += 1;
+                if !quiet {
+                    println!("session {session} already exists");
+                }
                 continue;
             }
+            to_create.push(entry);
+        }
 
-            let args = Self::build_start_args(&session, entry);
-            self.run_args(&args)
-                .with_context(|| format!("start session {session}"))?;
-            println!("created session: {session}");
+        if to_create.is_empty() {
+            if quiet && skipped > 0 {
+                println!("all {skipped} session(s) already exist");
+            }
+            return Ok(());
+        }
+
+        let mut args: Vec<String> = Vec::new();
+        let mut first = true;
+
+        for entry in &to_create {
+            let session = normalize_session_name(&entry.session_name);
+            if !first {
+                args.push(";".into());
+            }
+            first = false;
+            args.extend(Self::build_start_args(&session, entry));
+            if !quiet {
+                println!("created session: {session}");
+            }
+        }
+
+        self.run_args(&args).context("start sessions")?;
+
+        if quiet {
+            println!("created {} session(s)", to_create.len());
         }
 
         Ok(())

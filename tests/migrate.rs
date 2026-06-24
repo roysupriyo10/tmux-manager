@@ -38,7 +38,10 @@ fn migrate_legacy_json_to_toml() {
 
     let store = load_store().unwrap();
     let config = &store.configs["demo"];
-    assert_eq!(config.root.as_deref(), Some(std::path::Path::new("/tmp/demo")));
+    assert_eq!(
+        config.root.as_deref(),
+        Some(std::path::Path::new("/tmp/demo"))
+    );
     assert_eq!(config.entries.get("root").unwrap().dir().as_os_str(), ".");
     assert_eq!(
         config.entries.get("web").unwrap().dir(),
@@ -60,7 +63,7 @@ fn migrate_refuses_existing_target_without_force() {
     let target = target_dir.join("config.toml");
     fs::write(&target, "[empty]\nwindows = 1\nentries = {}\n").unwrap();
 
-    let err = migrate::migrate_from_legacy(&legacy_dir.join("config.json"), &target, false)
-        .unwrap_err();
+    let err =
+        migrate::migrate_from_legacy(&legacy_dir.join("config.json"), &target, false).unwrap_err();
     assert!(err.to_string().contains("already exists"));
 }

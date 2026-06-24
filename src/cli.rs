@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 use crate::completions::config_name_completer;
@@ -10,12 +10,51 @@ pub struct Cli {
     pub command: Command,
 }
 
+#[derive(Args, Clone, Debug, Default)]
+pub struct RunOptions {
+    /// Worktree name (sessions under worktree-{name}/…)
+    #[arg(short = 'w', long)]
+    pub worktree: Option<String>,
+    /// Override config root for this run
+    #[arg(long)]
+    pub root: Option<PathBuf>,
+    /// Worktree parent directory (relative to config root unless absolute)
+    #[arg(long)]
+    pub worktrees: Option<PathBuf>,
+    /// Direct checkout root for worktree (no worktree name appended)
+    #[arg(long)]
+    pub worktree_root: Option<PathBuf>,
+    /// Session prefix template; `{name}` is replaced with worktree name
+    #[arg(long)]
+    pub worktree_prefix: Option<String>,
+    /// Override default window count
+    #[arg(long)]
+    pub windows: Option<u32>,
+    /// Suppress per-session status lines
+    #[arg(short, long)]
+    pub quiet: bool,
+}
+
+impl RunOptions {
+    pub fn into_overrides(self) -> crate::model::ResolveOverrides {
+        crate::model::ResolveOverrides {
+            root: self.root,
+            worktree_parent: self.worktrees,
+            worktree_root: self.worktree_root,
+            worktree_prefix: self.worktree_prefix,
+            windows: self.windows,
+        }
+    }
+}
+
 #[derive(Subcommand)]
 pub enum Command {
     /// List configs, or entries for one config
     Ls {
         #[arg(add = config_name_completer())]
         config: Option<String>,
+        #[command(flatten)]
+        run: RunOptions,
     },
     /// Create a new config
     New {
@@ -24,6 +63,10 @@ pub enum Command {
         root: Option<PathBuf>,
         #[arg(long, default_value_t = 2)]
         windows: u32,
+        #[arg(long)]
+        worktrees: Option<PathBuf>,
+        #[arg(long)]
+        worktree_prefix: Option<String>,
     },
     /// Add an entry to a config
     Add {
@@ -31,6 +74,10 @@ pub enum Command {
         config: String,
         name: String,
         dir: PathBuf,
+        #[arg(long)]
+        windows: Option<u32>,
+        #[arg(long)]
+        cmd: Option<String>,
     },
     /// Remove an entry from a config
     Rm {
@@ -49,6 +96,8 @@ pub enum Command {
         config: String,
         #[arg(value_name = "PATTERN")]
         patterns: Vec<String>,
+        #[command(flatten)]
+        run: RunOptions,
     },
     /// Kill sessions (all entries, or matched patterns)
     Kill {
@@ -56,6 +105,8 @@ pub enum Command {
         config: String,
         #[arg(value_name = "PATTERN")]
         patterns: Vec<String>,
+        #[command(flatten)]
+        run: RunOptions,
     },
     /// Open a config in $EDITOR
     Edit {
@@ -68,9 +119,7 @@ pub enum Command {
         force: bool,
     },
     /// Generate shell completions to stdout
-    Completions {
-        shell: Shell,
-    },
+    Completions { shell: Shell },
 }
 
 #[derive(Clone, Copy, ValueEnum)]

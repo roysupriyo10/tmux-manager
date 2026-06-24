@@ -1,12 +1,12 @@
-use tmux_manager::cli::{Cli, Command};
+use tmux_manager::cli::{Cli, Command, RunOptions};
 use tmux_manager::completions;
 use tmux_manager::config::{
-    add_entry, create_config, delete_config, get_config, load_store, remove_entry, save_store,
-    config_path,
+    add_entry, config_path, create_config, delete_config, get_config, load_store, remove_entry,
+    save_store,
 };
 use tmux_manager::matcher::resolve_entry_keys;
 use tmux_manager::migrate;
-use tmux_manager::model::{ResolvedEntry, Store};
+use tmux_manager::model::{ResolveContext, ResolvedEntry, Store};
 use tmux_manager::tmux::{Backend, TmuxBackend};
 
 use anyhow::{Context, Result};
@@ -30,7 +30,7 @@ fn run() -> Result<()> {
     match cli.command {
         Command::Completions { shell } => {
             completions::write_shell_completions(shell, &mut std::io::stdout())
-        }
+        },
         command => dispatch(command),
     }
 }
@@ -39,68 +39,111 @@ fn dispatch(command: Command) -> Result<()> {
     let mut store = load_store()?;
 
     match command {
-        Command::Ls { config } => cmd_ls(&store, config.as_deref()),
+        Command::Ls { config, run } => cmd_ls(&store, config.as_deref(), &run),
         Command::New {
             config,
             root,
             windows,
+            worktrees,
+            worktree_prefix,
         } => {
-            create_config(&mut store, &config, root, windows)?;
+            create_config(
+                &mut store,
+                &config,
+                root,
+                windows,
+                worktrees,
+                worktree_prefix,
+            )?;
             save_store(&store)?;
             println!("created config: {config}");
             Ok(())
-        }
-        Command::Add { config, name, dir } => {
-            add_entry(&mut store, &config, &name, dir)?;
+        },
+        Command::Add {
+            config,
+            name,
+            dir,
+            windows,
+            cmd,
+        } => {
+            add_entry(&mut store, &config, &name, dir, windows, cmd)?;
             save_store(&store)?;
             println!("added entry {name} to {config}");
             Ok(())
-        }
+        },
         Command::Rm { config, name } => {
             remove_entry(&mut store, &config, &name)?;
             save_store(&store)?;
             println!("removed entry {name} from {config}");
             Ok(())
-        }
+        },
         Command::Del { config } => {
             delete_config(&mut store, &config)?;
             save_store(&store)?;
             println!("deleted config: {config}");
             Ok(())
-        }
-        Command::Start { config, patterns } => {
-            let entries = select_entries(&store, &config, &patterns)?;
+        },
+        Command::Start {
+            config,
+            patterns,
+            run,
+        } => {
+            let quiet = run.quiet;
+            let entries = select_entries(&store, &config, &patterns, &run)?;
             if entries.is_empty() {
                 println!("no entries matched");
                 return Ok(());
             }
-            TmuxBackend::default().start_sessions(&entries)
-        }
-        Command::Kill { config, patterns } => {
-            let entries = select_entries(&store, &config, &patterns)?;
+            TmuxBackend::default().start_sessions(&entries, quiet)
+        },
+        Command::Kill {
+            config,
+            patterns,
+            run,
+        } => {
+            let entries = select_entries(&store, &config, &patterns, &run)?;
             if entries.is_empty() {
                 println!("no entries matched");
                 return Ok(());
             }
             TmuxBackend::default().kill_sessions(&entries)
-        }
+        },
         Command::Edit { config } => cmd_edit(config.as_deref()),
         Command::Migrate { force } => migrate::migrate(force),
         Command::Completions { .. } => unreachable!(),
     }
 }
 
-fn cmd_ls(store: &Store, config_name: Option<&str>) -> Result<()> {
+fn cmd_ls(store: &Store, config_name: Option<&str>, run: &RunOptions) -> Result<()> {
     if let Some(name) = config_name {
         let config = get_config(store, name)?;
+        let ctx = resolve_context(name, run);
         println!("{name}:");
         if let Some(root) = &config.root {
             println!("  root: {}", root.display());
         }
+        if let Some(parent) = &config.worktree_parent {
+            println!("  worktree_parent: {}", parent.display());
+        }
+        if let Some(prefix) = &config.worktree_prefix {
+            println!("  worktree_prefix: {prefix}");
+        }
         println!("  windows: {}", config.windows);
+        if !config.worktrees.is_empty() {
+            println!("  worktrees:");
+            for (wt, def) in &config.worktrees {
+                println!("    - {wt}:");
+                if let Some(root) = &def.root {
+                    println!("        root: {}", root.display());
+                }
+                if let Some(windows) = def.windows {
+                    println!("        windows: {windows}");
+                }
+            }
+        }
         println!("  entries:");
 
-        for entry in config.resolve_entries(name)? {
+        for entry in config.resolve_entries_with(&ctx)? {
             println!("    - {}: {}", entry.key, entry.directory.display());
         }
         return Ok(());
@@ -120,13 +163,23 @@ fn cmd_ls(store: &Store, config_name: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+fn resolve_context<'a>(config_name: &'a str, run: &'a RunOptions) -> ResolveContext<'a> {
+    ResolveContext {
+        config_name,
+        worktree: run.worktree.as_deref(),
+        overrides: run.clone().into_overrides(),
+    }
+}
+
 fn select_entries(
     store: &Store,
     config_name: &str,
     patterns: &[String],
+    run: &RunOptions,
 ) -> Result<Vec<ResolvedEntry>> {
     let config = get_config(store, config_name)?;
-    let resolved = config.resolve_entries(config_name)?;
+    let ctx = resolve_context(config_name, run);
+    let resolved = config.resolve_entries_with(&ctx)?;
 
     if patterns.is_empty() {
         return Ok(resolved);

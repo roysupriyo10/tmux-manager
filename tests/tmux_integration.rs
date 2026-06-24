@@ -28,10 +28,18 @@ fn start_session_creates_expected_windows() {
         cmd: None,
     };
 
-    backend.start_sessions(&[entry]).unwrap();
+    backend.start_sessions(&[entry], false).unwrap();
 
     let list = Command::new("tmux")
-        .args(["-L", &socket, "list-windows", "-t", session, "-F", "#{window_index}"])
+        .args([
+            "-L",
+            &socket,
+            "list-windows",
+            "-t",
+            session,
+            "-F",
+            "#{window_index}",
+        ])
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&list.stdout);
@@ -76,8 +84,8 @@ fn start_is_idempotent_when_session_exists() {
         cmd: None,
     };
 
-    backend.start_sessions(&[entry.clone()]).unwrap();
-    backend.start_sessions(&[entry]).unwrap();
+    backend.start_sessions(&[entry.clone()], false).unwrap();
+    backend.start_sessions(&[entry], false).unwrap();
 
     cleanup(&socket, session);
 }

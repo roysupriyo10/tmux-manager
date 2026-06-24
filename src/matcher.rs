@@ -17,8 +17,10 @@ pub fn find_matching_keys(pattern: &str, candidates: &[String]) -> Vec<String> {
             .collect();
     }
 
-    let normalized_candidates: Vec<String> =
-        candidates.iter().map(|c| normalize_session_name(c)).collect();
+    let normalized_candidates: Vec<String> = candidates
+        .iter()
+        .map(|c| normalize_session_name(c))
+        .collect();
 
     if let Some(index) = find_best_match_index(&normalized_pattern, &normalized_candidates) {
         return vec![candidates[index].clone()];
@@ -27,7 +29,10 @@ pub fn find_matching_keys(pattern: &str, candidates: &[String]) -> Vec<String> {
     Vec::new()
 }
 
-pub fn resolve_entry_keys(patterns: &[String], candidates: &[String]) -> (Vec<String>, Vec<String>) {
+pub fn resolve_entry_keys(
+    patterns: &[String],
+    candidates: &[String],
+) -> (Vec<String>, Vec<String>) {
     let mut matched = Vec::new();
     let mut unmatched = Vec::new();
     let mut seen = HashSet::new();
@@ -60,7 +65,7 @@ fn glob_to_regex(glob: &str) -> Regex {
             c if ".+^${}()|[]\\".contains(c) => {
                 escaped.push('\\');
                 escaped.push(c);
-            }
+            },
             c => escaped.push(c),
         }
     }
