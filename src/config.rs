@@ -4,10 +4,18 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
 
+pub fn user_config_base() -> PathBuf {
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        if !xdg.is_empty() {
+            return PathBuf::from(xdg);
+        }
+    }
+
+    dirs::config_dir().unwrap_or_else(|| PathBuf::from(".config"))
+}
+
 pub fn config_dir() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from(".config"))
-        .join("tmux-manager")
+    user_config_base().join("tmux-manager")
 }
 
 pub fn config_path() -> PathBuf {

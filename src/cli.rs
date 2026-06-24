@@ -113,9 +113,9 @@ pub enum Command {
         #[arg(add = config_name_completer())]
         config: Option<String>,
     },
-    /// Migrate legacy JSON config to TOML (one-time)
+    /// Migrate legacy JSON config to TOML (one-time; merges into existing config.toml)
     Migrate {
-        #[arg(long, help = "overwrite existing config.toml")]
+        #[arg(long, help = "replace entire config.toml with legacy conversion only")]
         force: bool,
     },
     /// Generate shell completions to stdout
