@@ -24,7 +24,7 @@ fn start_session_creates_expected_windows() {
         key: "demo".into(),
         session_name: session.into(),
         directory: PathBuf::from("/tmp"),
-        windows: 2,
+        windows: tmux_manager::model::WindowsSpec::Count(2),
         cmd: None,
     };
 
@@ -56,7 +56,7 @@ fn start_session_creates_expected_windows() {
             key: "demo".into(),
             session_name: session.into(),
             directory: PathBuf::from("/tmp"),
-            windows: 2,
+            windows: tmux_manager::model::WindowsSpec::Count(2),
             cmd: None,
         }])
         .unwrap();
@@ -80,7 +80,7 @@ fn start_is_idempotent_when_session_exists() {
         key: "demo".into(),
         session_name: session.into(),
         directory: PathBuf::from("/tmp"),
-        windows: 1,
+        windows: tmux_manager::model::WindowsSpec::Count(1),
         cmd: None,
     };
 

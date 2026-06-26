@@ -1,0 +1,8 @@
+[portfolios.entries."supriyoroy.com/web"]
+dir = "supriyoroy.com/apps/web"
+
+[[portfolios.entries."supriyoroy.com/web".windows]]
+name = "web"
+
+[[portfolios.entries."supriyoroy.com/web".windows.panes]]
+cmd = "pnpm exec nx dev web -- --host"

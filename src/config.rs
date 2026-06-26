@@ -90,7 +90,7 @@ pub fn add_entry(
     let entry = if windows.is_some() || cmd.is_some() {
         Entry::Detailed(EntryOptions {
             dir: stored_dir,
-            windows,
+            windows: windows.map(crate::model::WindowsSpec::Count),
             cmd,
         })
     } else {

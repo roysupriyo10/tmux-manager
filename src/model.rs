@@ -70,6 +70,43 @@ pub struct WorktreeOverrides {
     pub worktree_parent: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum SplitDirection {
+    #[default]
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(untagged)]
+pub enum PaneSpec {
+    Command(String),
+    Detailed {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cmd: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        dir: Option<PathBuf>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        split: Option<SplitDirection>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct WindowSpec {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub panes: Vec<PaneSpec>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(untagged)]
+pub enum WindowsSpec {
+    Count(u32),
+    Detailed(Vec<WindowSpec>),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum Entry {
@@ -83,8 +120,8 @@ pub struct EntryOptions {
     #[schemars(description = "Directory relative to effective root.")]
     pub dir: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(description = "Override window count for this entry.", range(min = 1))]
-    pub windows: Option<u32>,
+    #[schemars(description = "Override window count or provide detailed layout for this entry.")]
+    pub windows: Option<WindowsSpec>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(description = "Command sent to the session after create (tmux send-keys).")]
     pub cmd: Option<String>,
@@ -111,7 +148,7 @@ pub struct ResolvedEntry {
     pub key: String,
     pub session_name: String,
     pub directory: PathBuf,
-    pub windows: u32,
+    pub windows: WindowsSpec,
     pub cmd: Option<String>,
 }
 
@@ -127,10 +164,10 @@ impl Entry {
         }
     }
 
-    pub fn windows(&self) -> Option<u32> {
+    pub fn windows(&self) -> Option<&WindowsSpec> {
         match self {
             Entry::Simple(_) => None,
-            Entry::Detailed(opts) => opts.windows,
+            Entry::Detailed(opts) => opts.windows.as_ref(),
         }
     }
 
@@ -199,10 +236,9 @@ impl Config {
 
         for (key, entry) in &self.entries {
             let directory = resolve_entry_dir(Some(&effective_base), entry.dir())?;
-            let windows = entry
-                .windows()
-                .or(ctx.overrides.windows)
-                .unwrap_or(default_windows);
+            let windows = entry.windows().cloned().unwrap_or_else(|| {
+                WindowsSpec::Count(ctx.overrides.windows.unwrap_or(default_windows))
+            });
             let session_name = format!("{session_prefix}/{key}");
 
             resolved.push(ResolvedEntry {
@@ -315,9 +351,9 @@ pub fn common_path_prefix(paths: &[PathBuf]) -> Option<PathBuf> {
     for (i, component) in components[0].iter().enumerate() {
         if components
             .iter()
-            .all(|parts| parts.get(i) == Some(&component))
+            .all(|parts| parts.get(i) == Some(component))
         {
-            prefix.push(component.clone());
+            prefix.push(*component);
         } else {
             break;
         }

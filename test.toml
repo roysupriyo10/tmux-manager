@@ -1,0 +1,2 @@
+[demo.entries]
+api = { dir = "apps/api", windows = 3, cmd = "cargo run" }

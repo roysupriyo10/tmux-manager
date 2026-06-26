@@ -3,7 +3,6 @@
   "additionalProperties": false,
   "definitions": {
     "Entry": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "anyOf": [
         {
           "description": "Directory relative to effective root (or . for root).",
@@ -13,75 +12,6 @@
           "$ref": "#/definitions/EntryOptions"
         }
       ],
-      "definitions": {
-        "Entry": {
-          "anyOf": [
-            {
-              "description": "Directory relative to effective root (or . for root).",
-              "type": "string"
-            },
-            {
-              "$ref": "#/definitions/EntryOptions"
-            }
-          ]
-        },
-        "EntryOptions": {
-          "properties": {
-            "cmd": {
-              "description": "Command sent to the session after create (tmux send-keys).",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "dir": {
-              "description": "Directory relative to effective root.",
-              "type": "string"
-            },
-            "windows": {
-              "description": "Override window count for this entry.",
-              "format": "uint32",
-              "minimum": 1,
-              "type": [
-                "integer",
-                "null"
-              ]
-            }
-          },
-          "required": [
-            "dir"
-          ],
-          "type": "object"
-        },
-        "WorktreeOverrides": {
-          "properties": {
-            "root": {
-              "description": "Direct checkout root for this worktree. Does not append the worktree name.",
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "windows": {
-              "description": "Default window count when using this worktree.",
-              "format": "uint32",
-              "minimum": 1,
-              "type": [
-                "integer",
-                "null"
-              ]
-            },
-            "worktree_parent": {
-              "description": "Override worktree parent for this worktree only.",
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "type": "object"
-        }
-      },
       "title": "Entry"
     },
     "EntryOptions": {
@@ -113,13 +43,15 @@
           }
         },
         "windows": {
-          "description": "Override window count for this entry.",
-          "format": "uint32",
-          "minimum": 1,
-          "type": [
-            "integer",
-            "null"
+          "anyOf": [
+            {
+              "$ref": "#/definitions/WindowsSpec"
+            },
+            {
+              "type": "null"
+            }
           ],
+          "description": "Override window count or provide detailed layout for this entry.",
           "x-taplo": {
             "initKeys": [
               "dir",
@@ -140,6 +72,79 @@
           "cmd"
         ]
       }
+    },
+    "PaneSpec": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "properties": {
+            "cmd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "dir": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "split": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/SplitDirection"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "type": "object"
+        }
+      ]
+    },
+    "SplitDirection": {
+      "enum": [
+        "horizontal",
+        "vertical"
+      ],
+      "type": "string"
+    },
+    "WindowSpec": {
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "panes": {
+          "items": {
+            "$ref": "#/definitions/PaneSpec"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "WindowsSpec": {
+      "anyOf": [
+        {
+          "format": "uint32",
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "items": {
+            "$ref": "#/definitions/WindowSpec"
+          },
+          "type": "array"
+        }
+      ]
     },
     "WorktreeOverrides": {
       "additionalProperties": false,

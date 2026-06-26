@@ -11,16 +11,13 @@ const LEGACY_CONFIG: &str = "tmux-manager-nodejs/config.json";
 
 /// Candidate paths for the Node tmux-manager JSON config (first match wins).
 pub fn legacy_config_candidates() -> Vec<PathBuf> {
-    let mut paths = Vec::new();
-
-    paths.push(user_config_base().join(LEGACY_CONFIG));
+    #[allow(unused_mut)]
+    let mut paths = vec![user_config_base().join(LEGACY_CONFIG)];
 
     // Electron store on macOS used ~/Library/Preferences, not Application Support.
     #[cfg(target_os = "macos")]
     if let Some(home) = dirs::home_dir() {
-        paths.push(
-            home.join("Library/Preferences/tmux-manager-nodejs/config.json"),
-        );
+        paths.push(home.join("Library/Preferences/tmux-manager-nodejs/config.json"));
     }
 
     paths
@@ -98,15 +95,10 @@ pub fn migrate_from_legacy(legacy: &Path, target: &Path, force: bool) -> Result<
             println!("overwriting {} from legacy", target.display());
             incoming
         } else {
-            let mut existing = load_store_at(target).with_context(|| {
-                format!("read existing config at {}", target.display())
-            })?;
+            let mut existing = load_store_at(target)
+                .with_context(|| format!("read existing config at {}", target.display()))?;
             let n = merge_stores(&mut existing, incoming);
-            println!(
-                "merged {} legacy config(s) into {}",
-                n,
-                target.display()
-            );
+            println!("merged {} legacy config(s) into {}", n, target.display());
             existing
         }
     } else {

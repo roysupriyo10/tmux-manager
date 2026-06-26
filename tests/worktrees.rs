@@ -72,7 +72,10 @@ fn worktree_section_windows_override() {
         worktree: Some("w"),
         overrides: ResolveOverrides::default(),
     };
-    assert_eq!(config.resolve_entries_with(&ctx).unwrap()[0].windows, 1);
+    assert_eq!(
+        config.resolve_entries_with(&ctx).unwrap()[0].windows,
+        tmux_manager::model::WindowsSpec::Count(1)
+    );
 }
 
 #[test]
@@ -95,5 +98,5 @@ fn cli_overrides_beat_config() {
     };
     let entry = config.resolve_entries_with(&ctx).unwrap().pop().unwrap();
     assert_eq!(entry.session_name, "p/custom-n/a");
-    assert_eq!(entry.windows, 9);
+    assert_eq!(entry.windows, tmux_manager::model::WindowsSpec::Count(9));
 }

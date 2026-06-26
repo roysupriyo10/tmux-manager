@@ -64,6 +64,40 @@ pub fn store_schema_json() -> anyhow::Result<String> {
         .unwrap_or_default();
     inject_init_keys(&mut worktree_props, WORKTREE_KEYS);
 
+    let mut definitions = config_value
+        .get("definitions")
+        .and_then(|v| v.as_object())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut entry_val = schema_to_value(entry);
+    if let Some(obj) = entry_val.as_object_mut() {
+        obj.remove("definitions");
+        obj.remove("$schema");
+    }
+    definitions.insert("Entry".into(), entry_val);
+
+    definitions.insert(
+        "EntryOptions".into(),
+        json!({
+            "type": "object",
+            "properties": entry_options_props,
+            "required": ["dir"],
+            "additionalProperties": false,
+            "x-taplo": { "initKeys": ENTRY_OPTION_KEYS }
+        }),
+    );
+
+    definitions.insert(
+        "WorktreeOverrides".into(),
+        json!({
+            "type": "object",
+            "properties": worktree_props,
+            "additionalProperties": false,
+            "x-taplo": { "initKeys": WORKTREE_KEYS }
+        }),
+    );
+
     let root = json!({
         "$schema": "http://json-schema.org/draft-04/schema#",
         "title": "tmux-manager config",
@@ -73,22 +107,7 @@ pub fn store_schema_json() -> anyhow::Result<String> {
             "^[a-zA-Z][a-zA-Z0-9._-]*$": config_block
         },
         "additionalProperties": false,
-        "definitions": {
-            "Entry": schema_to_value(entry),
-            "EntryOptions": {
-                "type": "object",
-                "properties": entry_options_props,
-                "required": ["dir"],
-                "additionalProperties": false,
-                "x-taplo": { "initKeys": ENTRY_OPTION_KEYS }
-            },
-            "WorktreeOverrides": {
-                "type": "object",
-                "properties": worktree_props,
-                "additionalProperties": false,
-                "x-taplo": { "initKeys": WORKTREE_KEYS }
-            }
-        }
+        "definitions": definitions
     });
 
     Ok(serde_json::to_string_pretty(&root)?)

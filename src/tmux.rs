@@ -44,15 +44,122 @@ impl TmuxBackend {
             dir.clone(),
         ];
 
-        for _ in 1..entry.windows {
-            args.push(";".into());
-            args.extend([
-                "new-window".into(),
-                "-t".into(),
-                session.into(),
-                "-c".into(),
-                dir.clone(),
-            ]);
+        match &entry.windows {
+            crate::model::WindowsSpec::Count(count) => {
+                for _ in 1..*count {
+                    args.push(";".into());
+                    args.extend([
+                        "new-window".into(),
+                        "-t".into(),
+                        session.into(),
+                        "-c".into(),
+                        dir.clone(),
+                    ]);
+                }
+            },
+            crate::model::WindowsSpec::Detailed(windows) => {
+                let mut first_window = true;
+                for (w_idx, window) in windows.iter().enumerate() {
+                    let window_target = format!("{}:{}", session, w_idx);
+                    if first_window {
+                        // The first window is already created by new-session. Optionally rename it.
+                        if let Some(name) = &window.name {
+                            args.push(";".into());
+                            args.extend([
+                                "rename-window".into(),
+                                "-t".into(),
+                                window_target.clone(),
+                                name.clone(),
+                            ]);
+                        }
+                        first_window = false;
+                    } else {
+                        args.push(";".into());
+                        let mut nw_args = vec![
+                            "new-window".into(),
+                            "-t".into(),
+                            session.into(),
+                            "-c".into(),
+                            dir.clone(),
+                        ];
+                        if let Some(name) = &window.name {
+                            nw_args.push("-n".into());
+                            nw_args.push(name.clone());
+                        }
+                        args.extend(nw_args);
+                    }
+
+                    // Process panes
+                    let mut first_pane = true;
+                    for pane in window.panes.iter() {
+                        let pane_dir = match pane {
+                            crate::model::PaneSpec::Detailed { dir: Some(d), .. } => {
+                                Some(entry.directory.join(d).to_string_lossy().into_owned())
+                            },
+                            _ => None,
+                        };
+
+                        if first_pane {
+                            // First pane is already created. Send keys if needed.
+                            let cmd_str = match pane {
+                                crate::model::PaneSpec::Command(c) => Some(c.as_str()),
+                                crate::model::PaneSpec::Detailed { cmd, .. } => cmd.as_deref(),
+                            };
+                            if let Some(c) = cmd_str {
+                                args.push(";".into());
+                                args.extend([
+                                    "send-keys".into(),
+                                    "-t".into(),
+                                    window_target.clone(),
+                                    c.to_string(),
+                                    "Enter".into(),
+                                ]);
+                            }
+                            first_pane = false;
+                        } else {
+                            // Create new pane
+                            args.push(";".into());
+                            let split_dir = match pane {
+                                crate::model::PaneSpec::Detailed {
+                                    split: Some(crate::model::SplitDirection::Vertical),
+                                    ..
+                                } => "-v",
+                                _ => "-h", // default horizontal
+                            };
+                            let mut split_args = vec![
+                                "split-window".into(),
+                                split_dir.into(),
+                                "-t".into(),
+                                window_target.clone(),
+                            ];
+                            if let Some(d) = &pane_dir {
+                                split_args.push("-c".into());
+                                split_args.push(d.clone());
+                            } else {
+                                split_args.push("-c".into());
+                                split_args.push(dir.clone());
+                            }
+                            args.extend(split_args);
+
+                            // Send keys to the newly created pane (it becomes the active pane in that window)
+                            let cmd_str = match pane {
+                                crate::model::PaneSpec::Command(c) => Some(c.as_str()),
+                                crate::model::PaneSpec::Detailed { cmd, .. } => cmd.as_deref(),
+                            };
+                            if let Some(c) = cmd_str {
+                                args.push(";".into());
+                                args.extend([
+                                    "send-keys".into(),
+                                    "-t".into(),
+                                    window_target.clone(),
+                                    c.to_string(),
+                                    "Enter".into(),
+                                ]);
+                            }
+                        }
+                    }
+                }
+            },
         }
 
         if let Some(cmd) = &entry.cmd {
@@ -209,7 +316,7 @@ mod tests {
             key: "root".into(),
             session_name: "cfg/root".into(),
             directory: PathBuf::from("/tmp/work"),
-            windows: 2,
+            windows: crate::model::WindowsSpec::Count(2),
             cmd: None,
         };
 
@@ -229,6 +336,89 @@ mod tests {
                 "cfg/root",
                 "-c",
                 "/tmp/work",
+            ]
+        );
+    }
+
+    #[test]
+    fn start_args_builds_panes_correctly() {
+        use crate::model::{PaneSpec, SplitDirection, WindowSpec, WindowsSpec};
+        let entry = ResolvedEntry {
+            key: "root".into(),
+            session_name: "cfg/root".into(),
+            directory: PathBuf::from("/tmp/work"),
+            windows: WindowsSpec::Detailed(vec![
+                WindowSpec {
+                    name: Some("editor".into()),
+                    panes: vec![PaneSpec::Command("nvim".into())],
+                },
+                WindowSpec {
+                    name: Some("server".into()),
+                    panes: vec![
+                        PaneSpec::Detailed {
+                            cmd: Some("npm run dev".into()),
+                            dir: None,
+                            split: None,
+                        },
+                        PaneSpec::Detailed {
+                            cmd: Some("npm run test".into()),
+                            dir: Some(PathBuf::from("client")),
+                            split: Some(SplitDirection::Vertical),
+                        },
+                    ],
+                },
+            ]),
+            cmd: None,
+        };
+
+        let args = TmuxBackend::build_start_args("cfg/root", &entry);
+        assert_eq!(
+            args,
+            vec![
+                "new-session",
+                "-d",
+                "-s",
+                "cfg/root",
+                "-c",
+                "/tmp/work",
+                ";",
+                "rename-window",
+                "-t",
+                "cfg/root:0",
+                "editor",
+                ";",
+                "send-keys",
+                "-t",
+                "cfg/root:0",
+                "nvim",
+                "Enter",
+                ";",
+                "new-window",
+                "-t",
+                "cfg/root",
+                "-c",
+                "/tmp/work",
+                "-n",
+                "server",
+                ";",
+                "send-keys",
+                "-t",
+                "cfg/root:1",
+                "npm run dev",
+                "Enter",
+                ";",
+                "split-window",
+                "-v",
+                "-t",
+                "cfg/root:1",
+                "-c",
+                "/tmp/work/client",
+                ";",
+                "send-keys",
+                "-t",
+                "cfg/root:1",
+                "npm run test",
+                "Enter",
             ]
         );
     }
