@@ -257,15 +257,17 @@ impl Backend for TmuxBackend {
             }
             first = false;
             args.extend(Self::build_start_args(&session, entry));
-            if !quiet {
-                println!("created session: {session}");
-            }
         }
 
         self.run_args(&args).context("start sessions")?;
 
         if quiet {
             println!("created {} session(s)", to_create.len());
+        } else {
+            for entry in to_create.iter() {
+                let session = normalize_session_name(&entry.session_name);
+                println!("created session: {session}");
+            }
         }
 
         Ok(())
