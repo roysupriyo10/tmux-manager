@@ -93,11 +93,33 @@ pub enum PaneSpec {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct WindowSpec {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub panes: Vec<PaneSpec>,
+#[serde(untagged)]
+pub enum WindowSpec {
+    #[schemars(description = "Run this command in the window's default pane.")]
+    Command(String),
+    Detailed {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        panes: Vec<PaneSpec>,
+    },
+}
+
+impl WindowSpec {
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            WindowSpec::Command(_) => None,
+            WindowSpec::Detailed { name, .. } => name.as_deref(),
+        }
+    }
+
+    /// Pane layout for this window. A command string is one default pane.
+    pub fn panes(&self) -> std::borrow::Cow<'_, [PaneSpec]> {
+        match self {
+            WindowSpec::Command(c) => std::borrow::Cow::Owned(vec![PaneSpec::Command(c.clone())]),
+            WindowSpec::Detailed { panes, .. } => std::borrow::Cow::Borrowed(panes),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -450,5 +472,19 @@ mod tests {
         let resolved = config.resolve_entries_with(&ctx).unwrap();
         let root = resolved.iter().find(|e| e.key == "root").unwrap();
         assert_eq!(root.directory, PathBuf::from("/new"));
+    }
+
+    #[test]
+    fn window_spec_command_string_deserializes() {
+        #[derive(Deserialize)]
+        struct Wrap {
+            windows: Vec<WindowSpec>,
+        }
+
+        let wrap: Wrap = toml::from_str(r#"windows = [{}, "pnpm dev", {}]"#).unwrap();
+        let specs = wrap.windows;
+        assert!(matches!(specs[0], WindowSpec::Detailed { .. }));
+        assert_eq!(specs[1], WindowSpec::Command("pnpm dev".into()));
+        assert_eq!(specs[1].panes()[0], PaneSpec::Command("pnpm dev".into()));
     }
 }

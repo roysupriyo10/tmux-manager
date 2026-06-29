@@ -115,21 +115,29 @@
       "type": "string"
     },
     "WindowSpec": {
-      "properties": {
-        "name": {
-          "type": [
-            "string",
-            "null"
-          ]
+      "anyOf": [
+        {
+          "description": "Run this command in the window's default pane.",
+          "type": "string"
         },
-        "panes": {
-          "items": {
-            "$ref": "#/definitions/PaneSpec"
+        {
+          "properties": {
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "panes": {
+              "items": {
+                "$ref": "#/definitions/PaneSpec"
+              },
+              "type": "array"
+            }
           },
-          "type": "array"
+          "type": "object"
         }
-      },
-      "type": "object"
+      ]
     },
     "WindowsSpec": {
       "anyOf": [

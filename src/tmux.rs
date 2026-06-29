@@ -61,15 +61,16 @@ impl TmuxBackend {
                 let mut first_window = true;
                 for (w_idx, window) in windows.iter().enumerate() {
                     let window_target = format!("{}:{}", session, w_idx);
+                    let panes = window.panes();
                     if first_window {
                         // The first window is already created by new-session. Optionally rename it.
-                        if let Some(name) = &window.name {
+                        if let Some(name) = window.name() {
                             args.push(";".into());
                             args.extend([
                                 "rename-window".into(),
                                 "-t".into(),
                                 window_target.clone(),
-                                name.clone(),
+                                name.to_string(),
                             ]);
                         }
                         first_window = false;
@@ -82,16 +83,16 @@ impl TmuxBackend {
                             "-c".into(),
                             dir.clone(),
                         ];
-                        if let Some(name) = &window.name {
+                        if let Some(name) = window.name() {
                             nw_args.push("-n".into());
-                            nw_args.push(name.clone());
+                            nw_args.push(name.to_string());
                         }
                         args.extend(nw_args);
                     }
 
                     // Process panes
                     let mut first_pane = true;
-                    for pane in window.panes.iter() {
+                    for pane in panes.iter() {
                         let pane_dir = match pane {
                             crate::model::PaneSpec::Detailed { dir: Some(d), .. } => {
                                 Some(entry.directory.join(d).to_string_lossy().into_owned())
@@ -350,11 +351,11 @@ mod tests {
             session_name: "cfg/root".into(),
             directory: PathBuf::from("/tmp/work"),
             windows: WindowsSpec::Detailed(vec![
-                WindowSpec {
+                WindowSpec::Detailed {
                     name: Some("editor".into()),
                     panes: vec![PaneSpec::Command("nvim".into())],
                 },
-                WindowSpec {
+                WindowSpec::Detailed {
                     name: Some("server".into()),
                     panes: vec![
                         PaneSpec::Detailed {
@@ -422,6 +423,33 @@ mod tests {
                 "npm run test",
                 "Enter",
             ]
+        );
+    }
+
+    #[test]
+    fn start_args_window_command_string_matches_single_pane() {
+        use crate::model::{WindowSpec, WindowsSpec};
+        let from_string = ResolvedEntry {
+            key: "root".into(),
+            session_name: "cfg/root".into(),
+            directory: PathBuf::from("/tmp/work"),
+            windows: WindowsSpec::Detailed(vec![WindowSpec::Command("pnpm dev".into())]),
+            cmd: None,
+        };
+        let from_panes = ResolvedEntry {
+            key: "root".into(),
+            session_name: "cfg/root".into(),
+            directory: PathBuf::from("/tmp/work"),
+            windows: WindowsSpec::Detailed(vec![WindowSpec::Detailed {
+                name: None,
+                panes: vec![crate::model::PaneSpec::Command("pnpm dev".into())],
+            }]),
+            cmd: None,
+        };
+
+        assert_eq!(
+            TmuxBackend::build_start_args("cfg/root", &from_string),
+            TmuxBackend::build_start_args("cfg/root", &from_panes),
         );
     }
 }

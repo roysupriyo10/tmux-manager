@@ -132,6 +132,14 @@ fn schema_entry_and_worktree_definitions_have_init_keys() {
         wt["x-taplo"]["initKeys"],
         serde_json::json!(["root", "windows", "worktree_parent"])
     );
+
+    let window = &v["definitions"]["WindowSpec"];
+    let variants = window
+        .get("anyOf")
+        .or_else(|| window.get("oneOf"))
+        .and_then(|v| v.as_array())
+        .expect("WindowSpec is a union");
+    assert!(variants.len() >= 2);
 }
 
 #[test]
