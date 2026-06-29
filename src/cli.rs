@@ -33,6 +33,9 @@ pub struct RunOptions {
     /// Suppress per-session status lines
     #[arg(short, long)]
     pub quiet: bool,
+    /// Create sessions/windows/panes only; do not run configured commands
+    #[arg(long)]
+    pub no_cmd: bool,
 }
 
 impl RunOptions {

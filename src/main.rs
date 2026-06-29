@@ -88,13 +88,12 @@ fn dispatch(command: Command) -> Result<()> {
             patterns,
             run,
         } => {
-            let quiet = run.quiet;
             let entries = select_entries(&store, &config, &patterns, &run)?;
             if entries.is_empty() {
                 println!("no entries matched");
                 return Ok(());
             }
-            TmuxBackend::default().start_sessions(&entries, quiet)
+            TmuxBackend::default().start_sessions(&entries, run.quiet, run.no_cmd)
         },
         Command::Kill {
             config,

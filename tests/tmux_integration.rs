@@ -28,7 +28,7 @@ fn start_session_creates_expected_windows() {
         cmd: None,
     };
 
-    backend.start_sessions(&[entry], false).unwrap();
+    backend.start_sessions(&[entry], false, false).unwrap();
 
     let list = Command::new("tmux")
         .args([
@@ -84,8 +84,61 @@ fn start_is_idempotent_when_session_exists() {
         cmd: None,
     };
 
-    backend.start_sessions(&[entry.clone()], false).unwrap();
-    backend.start_sessions(&[entry], false).unwrap();
+    backend
+        .start_sessions(&[entry.clone()], false, false)
+        .unwrap();
+    backend.start_sessions(&[entry], false, false).unwrap();
 
+    cleanup(&socket, session);
+}
+
+#[test]
+fn start_no_cmd_creates_windows_without_running_commands() {
+    let socket = test_socket();
+    let session = "itest/no-cmd";
+    cleanup(&socket, session);
+
+    let backend = TmuxBackend::with_socket(&socket);
+    let entry = ResolvedEntry {
+        key: "demo".into(),
+        session_name: session.into(),
+        directory: PathBuf::from("/tmp"),
+        windows: tmux_manager::model::WindowsSpec::Detailed(vec![
+            tmux_manager::model::WindowSpec::Command("this-command-must-not-run".into()),
+            tmux_manager::model::WindowSpec::Detailed {
+                name: None,
+                panes: vec![tmux_manager::model::PaneSpec::Command(
+                    "nor-should-this".into(),
+                )],
+            },
+        ]),
+        cmd: Some("entry-cmd-must-not-run".into()),
+    };
+
+    backend
+        .start_sessions(&[entry.clone()], false, true)
+        .unwrap();
+
+    let list = Command::new("tmux")
+        .args([
+            "-L",
+            &socket,
+            "list-windows",
+            "-t",
+            session,
+            "-F",
+            "#{window_index}",
+        ])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&list.stdout);
+    let windows: Vec<String> = stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(windows, vec!["0", "1"]);
+
+    backend.kill_sessions(&[entry]).unwrap();
     cleanup(&socket, session);
 }

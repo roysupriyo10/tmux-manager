@@ -1,5 +1,7 @@
 use std::path::PathBuf;
-use tmux_manager::model::{resolve_entry_dir, Config, Entry, Store};
+use tmux_manager::model::{
+    resolve_entry_dir, Config, Entry, PaneSpec, Store, WindowSpec, WindowsSpec,
+};
 use tmux_manager::paths::{expand_config_root, home_dir};
 
 #[test]
@@ -64,4 +66,72 @@ fn store_roundtrips_through_toml() {
     let toml = toml::to_string_pretty(&store).unwrap();
     let parsed: Store = toml::from_str(&toml).unwrap();
     assert_eq!(parsed.configs["demo"].entries.len(), 1);
+}
+
+#[test]
+fn pane_spec_command_accessor() {
+    assert_eq!(
+        PaneSpec::Command("pnpm dev".into()).command(),
+        Some("pnpm dev")
+    );
+    assert_eq!(
+        PaneSpec::Detailed {
+            cmd: Some("make".into()),
+            dir: None,
+            split: None,
+        }
+        .command(),
+        Some("make")
+    );
+    assert_eq!(
+        PaneSpec::Detailed {
+            cmd: None,
+            dir: None,
+            split: None,
+        }
+        .command(),
+        None
+    );
+}
+
+#[test]
+fn window_spec_command_string_deserializes_and_expands_panes() {
+    #[derive(serde::Deserialize)]
+    struct Wrap {
+        windows: Vec<WindowSpec>,
+    }
+
+    let wrap: Wrap = toml::from_str(r#"windows = [{}, "pnpm dev", {}]"#).unwrap();
+    assert!(matches!(wrap.windows[0], WindowSpec::Detailed { .. }));
+    assert_eq!(wrap.windows[1], WindowSpec::Command("pnpm dev".into()));
+    assert_eq!(
+        wrap.windows[1].panes().as_ref(),
+        &[PaneSpec::Command("pnpm dev".into())]
+    );
+}
+
+#[test]
+fn windows_spec_deserializes_count_or_detailed_list() {
+    #[derive(serde::Deserialize)]
+    struct Wrap {
+        windows: WindowsSpec,
+    }
+
+    let count: Wrap = toml::from_str("windows = 3").unwrap();
+    assert_eq!(count.windows, WindowsSpec::Count(3));
+
+    let detailed: Wrap = toml::from_str(r#"windows = ["pnpm dev", { name = "shell" }]"#).unwrap();
+    match detailed.windows {
+        WindowsSpec::Detailed(specs) => {
+            assert_eq!(specs[0], WindowSpec::Command("pnpm dev".into()));
+            assert_eq!(
+                specs[1],
+                WindowSpec::Detailed {
+                    name: Some("shell".into()),
+                    panes: vec![],
+                }
+            );
+        },
+        WindowsSpec::Count(_) => panic!("expected detailed windows"),
+    }
 }

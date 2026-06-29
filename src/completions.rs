@@ -52,6 +52,10 @@ mod tests {
         for sub in ["start", "kill", "ls", "add", "completions"] {
             assert!(script.contains(sub), "missing subcommand: {sub}");
         }
+        assert!(
+            script.contains("no-cmd") || script.contains("no_cmd"),
+            "missing --no-cmd flag"
+        );
     }
 
     #[test]

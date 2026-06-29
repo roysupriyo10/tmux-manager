@@ -18,6 +18,7 @@ fn completions_subcommand_emits_zsh_compdef() {
     let script = String::from_utf8(output.stdout).expect("utf8 stdout");
     assert!(script.contains("#compdef tm"));
     assert!(script.contains("start"));
+    assert!(script.contains("no-cmd") || script.contains("no_cmd"));
 }
 
 #[test]

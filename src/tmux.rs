@@ -6,7 +6,7 @@ use std::ffi::OsStr;
 use std::process::Command;
 
 pub trait Backend {
-    fn start_sessions(&self, entries: &[ResolvedEntry], quiet: bool) -> Result<()>;
+    fn start_sessions(&self, entries: &[ResolvedEntry], quiet: bool, no_cmd: bool) -> Result<()>;
     fn kill_sessions(&self, entries: &[ResolvedEntry]) -> Result<()>;
 }
 
@@ -33,7 +33,18 @@ impl TmuxBackend {
         }
     }
 
-    pub fn build_start_args(session: &str, entry: &ResolvedEntry) -> Vec<String> {
+    fn push_send_keys(args: &mut Vec<String>, target: &str, command: &str) {
+        args.push(";".into());
+        args.extend([
+            "send-keys".into(),
+            "-t".into(),
+            target.into(),
+            command.into(),
+            "Enter".into(),
+        ]);
+    }
+
+    pub fn build_start_args(session: &str, entry: &ResolvedEntry, no_cmd: bool) -> Vec<String> {
         let dir = entry.directory.to_string_lossy().into_owned();
         let mut args = vec![
             "new-session".into(),
@@ -101,20 +112,10 @@ impl TmuxBackend {
                         };
 
                         if first_pane {
-                            // First pane is already created. Send keys if needed.
-                            let cmd_str = match pane {
-                                crate::model::PaneSpec::Command(c) => Some(c.as_str()),
-                                crate::model::PaneSpec::Detailed { cmd, .. } => cmd.as_deref(),
-                            };
-                            if let Some(c) = cmd_str {
-                                args.push(";".into());
-                                args.extend([
-                                    "send-keys".into(),
-                                    "-t".into(),
-                                    window_target.clone(),
-                                    c.to_string(),
-                                    "Enter".into(),
-                                ]);
+                            if !no_cmd {
+                                if let Some(c) = pane.command() {
+                                    Self::push_send_keys(&mut args, &window_target, c);
+                                }
                             }
                             first_pane = false;
                         } else {
@@ -142,20 +143,10 @@ impl TmuxBackend {
                             }
                             args.extend(split_args);
 
-                            // Send keys to the newly created pane (it becomes the active pane in that window)
-                            let cmd_str = match pane {
-                                crate::model::PaneSpec::Command(c) => Some(c.as_str()),
-                                crate::model::PaneSpec::Detailed { cmd, .. } => cmd.as_deref(),
-                            };
-                            if let Some(c) = cmd_str {
-                                args.push(";".into());
-                                args.extend([
-                                    "send-keys".into(),
-                                    "-t".into(),
-                                    window_target.clone(),
-                                    c.to_string(),
-                                    "Enter".into(),
-                                ]);
+                            if !no_cmd {
+                                if let Some(c) = pane.command() {
+                                    Self::push_send_keys(&mut args, &window_target, c);
+                                }
                             }
                         }
                     }
@@ -163,15 +154,10 @@ impl TmuxBackend {
             },
         }
 
-        if let Some(cmd) = &entry.cmd {
-            args.push(";".into());
-            args.extend([
-                "send-keys".into(),
-                "-t".into(),
-                session.into(),
-                cmd.clone(),
-                "Enter".into(),
-            ]);
+        if !no_cmd {
+            if let Some(cmd) = &entry.cmd {
+                Self::push_send_keys(&mut args, session, cmd);
+            }
         }
 
         args
@@ -220,7 +206,7 @@ impl TmuxBackend {
 }
 
 impl Backend for TmuxBackend {
-    fn start_sessions(&self, entries: &[ResolvedEntry], quiet: bool) -> Result<()> {
+    fn start_sessions(&self, entries: &[ResolvedEntry], quiet: bool, no_cmd: bool) -> Result<()> {
         if entries.is_empty() {
             return Ok(());
         }
@@ -257,7 +243,7 @@ impl Backend for TmuxBackend {
                 args.push(";".into());
             }
             first = false;
-            args.extend(Self::build_start_args(&session, entry));
+            args.extend(Self::build_start_args(&session, entry, no_cmd));
         }
 
         self.run_args(&args).context("start sessions")?;
@@ -323,7 +309,7 @@ mod tests {
             cmd: None,
         };
 
-        let args = TmuxBackend::build_start_args("cfg/root", &entry);
+        let args = TmuxBackend::build_start_args("cfg/root", &entry, false);
         assert_eq!(
             args,
             vec![
@@ -374,7 +360,7 @@ mod tests {
             cmd: None,
         };
 
-        let args = TmuxBackend::build_start_args("cfg/root", &entry);
+        let args = TmuxBackend::build_start_args("cfg/root", &entry, false);
         assert_eq!(
             args,
             vec![
@@ -448,8 +434,62 @@ mod tests {
         };
 
         assert_eq!(
-            TmuxBackend::build_start_args("cfg/root", &from_string),
-            TmuxBackend::build_start_args("cfg/root", &from_panes),
+            TmuxBackend::build_start_args("cfg/root", &from_string, false),
+            TmuxBackend::build_start_args("cfg/root", &from_panes, false),
         );
+    }
+
+    #[test]
+    fn start_args_no_cmd_preserves_layout_without_send_keys() {
+        use crate::model::{PaneSpec, SplitDirection, WindowSpec, WindowsSpec};
+        let entry = ResolvedEntry {
+            key: "root".into(),
+            session_name: "cfg/root".into(),
+            directory: PathBuf::from("/tmp/work"),
+            windows: WindowsSpec::Detailed(vec![
+                WindowSpec::Command("pnpm dev".into()),
+                WindowSpec::Detailed {
+                    name: Some("server".into()),
+                    panes: vec![
+                        PaneSpec::Command("npm run dev".into()),
+                        PaneSpec::Detailed {
+                            cmd: Some("npm run test".into()),
+                            dir: Some(PathBuf::from("client")),
+                            split: Some(SplitDirection::Vertical),
+                        },
+                    ],
+                },
+            ]),
+            cmd: Some("make watch".into()),
+        };
+
+        let args = TmuxBackend::build_start_args("cfg/root", &entry, true);
+        assert_eq!(
+            args,
+            vec![
+                "new-session",
+                "-d",
+                "-s",
+                "cfg/root",
+                "-c",
+                "/tmp/work",
+                ";",
+                "new-window",
+                "-t",
+                "cfg/root",
+                "-c",
+                "/tmp/work",
+                "-n",
+                "server",
+                ";",
+                "split-window",
+                "-v",
+                "-t",
+                "cfg/root:1",
+                "-c",
+                "/tmp/work/client",
+            ]
+        );
+        assert!(!args.iter().any(|arg| arg == "send-keys"));
     }
 }

@@ -92,6 +92,15 @@ pub enum PaneSpec {
     },
 }
 
+impl PaneSpec {
+    pub fn command(&self) -> Option<&str> {
+        match self {
+            PaneSpec::Command(c) => Some(c.as_str()),
+            PaneSpec::Detailed { cmd, .. } => cmd.as_deref(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(untagged)]
 pub enum WindowSpec {
@@ -472,19 +481,5 @@ mod tests {
         let resolved = config.resolve_entries_with(&ctx).unwrap();
         let root = resolved.iter().find(|e| e.key == "root").unwrap();
         assert_eq!(root.directory, PathBuf::from("/new"));
-    }
-
-    #[test]
-    fn window_spec_command_string_deserializes() {
-        #[derive(Deserialize)]
-        struct Wrap {
-            windows: Vec<WindowSpec>,
-        }
-
-        let wrap: Wrap = toml::from_str(r#"windows = [{}, "pnpm dev", {}]"#).unwrap();
-        let specs = wrap.windows;
-        assert!(matches!(specs[0], WindowSpec::Detailed { .. }));
-        assert_eq!(specs[1], WindowSpec::Command("pnpm dev".into()));
-        assert_eq!(specs[1].panes()[0], PaneSpec::Command("pnpm dev".into()));
     }
 }
